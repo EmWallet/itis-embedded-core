@@ -1,0 +1,1 @@
+export { TelegramStorage } from './telegram-storage';
