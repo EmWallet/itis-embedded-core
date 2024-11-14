@@ -10,7 +10,6 @@ import {
   comment,
   fromNano,
   internal,
-  TonClient,
   TonClient4,
   WalletContractV4,
 } from '@ton/ton';
@@ -24,7 +23,7 @@ import {
 } from '../types';
 
 const defaultTonClient4Endpoint = 'https://mainnet-v4.tonhubapi.com';
-const defaultTonClientEndpoint = 'https://toncenter.com/api/v2/jsonRPC';
+// const defaultTonClientEndpoint = 'https://toncenter.com/api/v2/jsonRPC';
 
 const workchain = 0;
 
@@ -37,11 +36,11 @@ interface EmbeddedWalletOptions {
 export class EmbeddedWallet {
   private _storage: StorageWallet | TelegramStorage;
   private _tonClient4: TonClient4;
-  private _tonClient: TonClient;
+  // private _tonClient: TonClient;
 
   constructor(options?: EmbeddedWalletOptions) {
     this._storage =
-      WebAppSDK.initData.length !== 0 && !(WebAppSDK.platform === 'macos')
+      (WebAppSDK as any)?.initData?.length !== 0
         ? new TelegramStorage()
         : new StorageWallet();
 
@@ -49,13 +48,13 @@ export class EmbeddedWallet {
       options?.tonClient4Endpoint || defaultTonClient4Endpoint;
     this._tonClient4 = new TonClient4({ endpoint: tonClient4Endpoint });
 
-    const tonClientEndpoint =
-      options?.tonClientEndpoint || defaultTonClientEndpoint;
-    const tonClientApiKey = options?.tonClientApiKey;
-    this._tonClient = new TonClient({
-      endpoint: tonClientEndpoint,
-      apiKey: tonClientApiKey,
-    });
+    // const tonClientEndpoint =
+    //   options?.tonClientEndpoint || defaultTonClientEndpoint;
+    // const tonClientApiKey = options?.tonClientApiKey;
+    // this._tonClient = new TonClient({
+    //   endpoint: tonClientEndpoint,
+    //   apiKey: tonClientApiKey,
+    // });
   }
 
   private async initializeWalletData(
@@ -74,6 +73,10 @@ export class EmbeddedWallet {
   }
 
   public async createNewWallet(password: string): Promise<void> {
+    if (this.isAuth()) {
+      throw new Error('Wallet already exists.');
+    }
+
     const mnemonics = await mnemonicNew();
     const keyPair = await mnemonicToPrivateKey(mnemonics);
     const wallet = WalletContractV4.create({
@@ -96,6 +99,10 @@ export class EmbeddedWallet {
     password: string,
     mnemonics: string[]
   ): Promise<void> {
+    if (this.isAuth()) {
+      throw new Error('Wallet already exists.');
+    }
+
     if (!mnemonicValidate(mnemonics)) {
       throw new Error('Invalid mnemonic.');
     }
@@ -110,24 +117,12 @@ export class EmbeddedWallet {
     const userFriendlyAddress = wallet.address.toString({ bounceable: false });
     const userFriendlyPublic = wallet.publicKey.toString('hex');
 
-    const mnemonicSaved = await this.saveMnemonic(
+    await this.initializeWalletData(
       mnemonics.join(' '),
-      password
-    );
-    const publicKeySaved = this._storage.save(
-      StorageKeys.PUBLIC,
-      userFriendlyPublic
-    );
-    const addressSaved = this._storage.save(
-      StorageKeys.ADDRESS,
+      password,
+      userFriendlyPublic,
       userFriendlyAddress
     );
-
-    if (!mnemonicSaved || !publicKeySaved || !addressSaved) {
-      throw new Error(
-        'Failed to create wallet from mnemonic. Unable to save data.'
-      );
-    }
   }
 
   private async saveMnemonic(
@@ -262,10 +257,10 @@ export class EmbeddedWallet {
         throw new Error('Wallet is not authenticated.');
       }
 
-      if (!Address.isAddress(txData.to)) {
+      const recipientAddress = Address.parse(txData.receiver);
+      if (!Address.isAddress(recipientAddress)) {
         throw new Error('Invalid receiver address.');
       }
-      const recipientAddress = Address.parse(txData.to);
 
       const wallet = WalletContractV4.create({
         workchain,
@@ -309,7 +304,7 @@ export class EmbeddedWallet {
 
     const txData: ISendTonTransaction = {
       amount: options.amount,
-      to: options.to,
+      receiver: options.receiver,
       comment: options.comment,
       secretKey: keyPair.secretKey,
       publicKey: keyPair.publicKey,
@@ -320,5 +315,13 @@ export class EmbeddedWallet {
 
   private formatErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : 'Unknown error';
+  }
+
+  public static isValidAddress(address: string): boolean {
+    try {
+      return Address.isAddress(Address.parse(address));
+    } catch (error) {
+      return false;
+    }
   }
 }
