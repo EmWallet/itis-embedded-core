@@ -1,12 +1,14 @@
-export * from "./getRatesDTO";
-export * from "./getAccountEventsDTO";
-export * from "./getAccountTransactionsDTO";
-export * from "./getAllJettonBalancesDTO";
-export * from "./getWalletInfoDTO";
-export * from "./getTransferJettonHistoryDTO";
-export * from "./getTokenChartDTO";
-export * from "./getAddressByDomainDTO";
-export * from "./getAllNFTsDTO";
+import { Address, Cell } from '@ton/ton';
+export * from './getRatesDTO';
+export * from './getAccountEventsDTO';
+export * from './getAccountTransactionsDTO';
+export * from './getAllJettonBalancesDTO';
+export * from './getWalletInfoDTO';
+export * from './getTransferJettonHistoryDTO';
+export * from './getTokenChartDTO';
+export * from './getAddressByDomainDTO';
+export * from './getAllNFTsDTO';
+
 
 export interface ISendTonTransaction {
   amount: string;
@@ -18,11 +20,35 @@ export interface ISendTonTransaction {
 }
 
 export interface ITransferTonOptions {
-    password: string;
-    receiver: string;
-    amount: string;
-    comment?: string;
-  }
+  password: string;
+  receiver: string;
+  amount: string;
+  comment?: string;
+}
+
+export interface ITransferJettonOptions {
+  password: string;
+  receiver: string;
+  amount: string;
+  jettonAddress: string;
+  comment?: string;
+}
+
+export interface TransToSignJetton {
+  to: Address
+  amount: string
+  comment?: string | undefined
+}
+
+export interface TransferOptions {
+  queryId?: number | bigint,
+  tokenAmount: bigint,
+  to: Address,
+  responseAddress: Address,
+  fwdAmount?: bigint,
+  fwdBody?: Cell,
+  comment?: string
+}
 
 export enum StorageKeys {
   SALT = 'salt',
@@ -50,32 +76,34 @@ export interface TokenInfo extends BaseToken {
   change24h?: number;
 }
 
-export type TxnStatus = "applied" | "failed";
-export type TxnDirection = "IN" | "OUT";
+export type TxnStatus = 'applied' | 'failed';
+export type TxnDirection = 'IN' | 'OUT';
 
 export type TransactionResponseNormal<T> = {
-    isError: boolean;
-    transaction: T | null;
-    errorMessage?: string;
+  isError: boolean;
+  transaction: T | null;
+  errorMessage?: string;
 };
 
 export type TransactionResponseFail = {
-    isError: true;
-    transaction: null;
-    errorMessage: string;
+  isError: true;
+  transaction: null;
+  errorMessage: string;
 };
 
-export type TransactionResponse<T> = TransactionResponseNormal<T> | TransactionResponseFail;
+export type TransactionResponse<T> =
+  | TransactionResponseNormal<T>
+  | TransactionResponseFail;
 
 export interface BaseTxnParsed {
-    actionType: string;
-    hash: string;
-    amount: number;
-    status: TxnStatus;
-    symbol: string;
-    timestamp?: Date;
-    from: string;
-    to: string;
-    direction: TxnDirection;
-    fee?: number;
+  actionType: string;
+  hash: string;
+  amount: number;
+  status: TxnStatus;
+  symbol: string;
+  timestamp?: Date;
+  from: string;
+  to: string;
+  direction: TxnDirection;
+  fee?: number;
 }

@@ -1,103 +1,206 @@
-# TSDX User Guide
+# itis-embedded-core
 
-Congrats! You just saved yourself hours of work by bootstrapping this project with TSDX. Let’s get you oriented with what’s here and how to use it.
+`itis-embedded-core` is a library designed for seamless integration of TON wallet functionality into your frontend application. The library provides a comprehensive set of methods, covering the functionality of an embedded TON wallet. With this library, you can create a wallet, retrieve wallet data, and send transactions.
 
-> This TSDX setup is meant for developing libraries (not apps!) that can be published to NPM. If you’re looking to build a Node app, you could use `ts-node-dev`, plain `ts-node`, or simple `tsc`.
+The library addresses the challenge of securely storing your wallet's private key on the client side. It utilizes the Web Crypto API to safely encrypt and decrypt your private key.
 
-> If you’re new to TypeScript, checkout [this handy cheatsheet](https://devhints.io/typescript)
+## Features
 
-## Commands
+- Create a new TON wallet or import an existing one via mnemonic.
+- Safely store and encrypt wallet data on the client side.
+- Retrieve wallet details such as address and balance.
+- Send TON transactions with support for comments.
+- Fetch transaction history for TON and Jetton transfers.
+- Validate blockchain addresses.
+- Retrieve real-time token rates and balances for Jettons.
+- Access NFT collections and DNS data for TON accounts.
 
-TSDX scaffolds your new library inside `/src`.
+## Installation
 
-To run TSDX, use:
+Install the library via npm:
 
 ```bash
-npm start # or yarn start
+GITHUB_TOKEN=<YOUR_GH_TOKEN> npm install @toncryptomillionaire/itis-embedded-core
+GITHUB_TOKEN=<YOUR GH TOKEN> yarn add @toncryptomillionaire/itis-embedded-core
 ```
 
-This builds to `/dist` and runs the project in watch mode so any edits you save inside `src` causes a rebuild to `/dist`.
+## usage example
 
-To do a one-off build, use `npm run build` or `yarn build`.
+```typescript
+import {
+  EmbeddedWallet,
+  TonAPIClient,
+} from '@toncryptomillionaire/itis-embedded-core';
 
-To run tests, use `npm test` or `yarn test`.
+// Initialize the wallet and TonAPI client
+const wallet = new EmbeddedWallet();
+const tonAPIClient = new TonAPIClient({ token: 'YOUR_TONAPI_TOKEN' });
 
-## Configuration
+async function main() {
+  // Attempt to create a new wallet
+  console.log('Creating a new wallet...');
+  try {
+    await wallet.createNewWallet('secure-password');
+    console.log('Wallet successfully created.');
+  } catch (error) {
+    console.error(error);
+    if (error.message === 'Wallet already exists.') {
+      console.log(
+        'Wallet already exists. Continuing with the existing wallet.'
+      );
+    } else {
+      // Handle other errors accordingly
+      return;
+    }
+  }
 
-Code quality is set up for you with `prettier`, `husky`, and `lint-staged`. Adjust the respective fields in `package.json` accordingly.
+  // Check if the wallet is authenticated
+  try {
+    const isAuthenticated = await wallet.isAuth();
+    console.log('Is wallet authenticated:', isAuthenticated);
+  } catch (error) {
+    console.error(error);
+    return;
+  }
 
-### Jest
+  // Verify if the password is correct
+  try {
+    const isPasswordCorrect = await wallet.verifyPassword('secure-password');
+    console.log('Is password correct:', isPasswordCorrect);
+  } catch (error) {
+    console.error(error);
+  }
 
-Jest tests are set up to run with `npm test` or `yarn test`.
+  // Get the mnemonic with the correct password
+  try {
+    const mnemonic = await wallet.getMnemonic('secure-password');
+    console.log('Wallet mnemonic:', mnemonic);
+  } catch (error) {
+    console.error(error);
+  }
 
-### Bundle Analysis
+  // Attempt to get the mnemonic with an incorrect password
+  try {
+    const mnemonic = await wallet.getMnemonic('wrong-password');
+    console.log('Wallet mnemonic:', mnemonic);
+  } catch (error) {
+    console.error(error);
+  }
 
-[`size-limit`](https://github.com/ai/size-limit) is set up to calculate the real cost of your library with `npm run size` and visualize the bundle with `npm run analyze`.
+  // Get the private key
+  try {
+    const privateKeyHex = await wallet.getPrivateKeyHex('secure-password');
+    console.log('Private key (Hex):', privateKeyHex);
+  } catch (error) {
+    console.error(error);
+  }
 
-#### Setup Files
+  let address: string;
+  try {
+    // Retrieve the wallet address
+    address = await wallet.getAddress();
+    console.log('Wallet address:', address);
+  } catch (error) {
+    console.error(error);
+    return;
+  }
 
-This is the folder structure we set up for you:
+  // Validate the wallet address
+  try {
+    const validAddress = EmbeddedWallet.isValidAddress(address);
+    console.log('Is valid address:', validAddress);
+  } catch (error) {
+    console.error(error);
+  }
 
-```txt
-/src
-  index.tsx       # EDIT THIS
-/test
-  blah.test.tsx   # EDIT THIS
-.gitignore
-package.json
-README.md         # EDIT THIS
-tsconfig.json
+  // Get the wallet balance
+  try {
+    const balance = await wallet.getTonBalance();
+    console.log('Wallet balance:', balance, 'TON');
+  } catch (error) {
+    console.error(error);
+  }
+
+  // Send a TON transaction
+  try {
+    console.log('Sending a transaction...');
+    await wallet.transferTon({
+      password: 'secure-password',
+      amount: '1000000000', // 1 TON in nanocoins
+      receiver: 'EQDc...recipientAddress...', // Replace with a valid recipient address
+      comment: 'Payment for services',
+    });
+    console.log('Transaction successfully sent.');
+  } catch (error) {
+    console.error(error);
+  }
+
+  // Fetch transaction history (TON transfers)
+  try {
+    console.log('Fetching TON transaction history...');
+    const tonHistory = await tonAPIClient.getParsedTonTransfersHistory({
+      address,
+    });
+    console.log('TON Transaction History:', tonHistory);
+  } catch (error) {
+    console.error(error);
+  }
+
+  // Fetch transaction history (Jetton transfers)
+  try {
+    console.log('Fetching Jetton transaction history...');
+    const jettonHistory = await tonAPIClient.getParsedJettonTransfersHistory({
+      address,
+      jettonAddress: 'EQDc...jettonAddress...', // Replace with a valid Jetton address
+    });
+    console.log('Jetton Transaction History:', jettonHistory);
+  } catch (error) {
+    console.error(error);
+  }
+
+  // Exit the wallet
+  try {
+    console.log('Exiting the wallet...');
+    await wallet.exitWallet();
+    console.log('Wallet data successfully cleared.');
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+main();
 ```
 
-### Rollup
+# Error Handling
 
-TSDX uses [Rollup](https://rollupjs.org) as a bundler and generates multiple rollup configs for various module formats and build settings. See [Optimizations](#optimizations) for details.
+In the example above, each operation is wrapped in its own try-catch block. This allows you to handle errors specific to each operation and continue executing subsequent operations without interruption.
 
-### TypeScript
+## Examples of Possible Errors and Their Handling:
 
-`tsconfig.json` is set up to interpret `dom` and `esnext` types, as well as `react` for `jsx`. Adjust according to your needs.
+Creating a Wallet When One Already Exists: If you attempt to create a new wallet when one already exists, the createNewWallet method will throw an error with the message 'Wallet already exists.'. In the example, this error is caught, and appropriate action is taken.
 
-## Continuous Integration
+Retrieving the Mnemonic with Incorrect Password: If you enter an incorrect password when trying to retrieve the mnemonic, the getMnemonic method will throw an error with the message 'Failed to decrypt mnemonic. Possibly incorrect password.'. In the example, this error is caught and logged.
 
-### GitHub Actions
+Checking Authentication: If an error occurs while checking the wallet's authentication status, such as issues with storage, the error will be caught, and the program execution can be halted using return.
 
-Two actions are added by default:
+Sending a Transaction: If an error occurs while sending a transaction (e.g., due to an invalid recipient address or TON client issues), it will be caught and logged to the console.
 
-- `main` which installs deps w/ cache, lints, tests, and builds on all pushes against a Node and OS matrix
-- `size` which comments cost comparison of your library on every pull request using [`size-limit`](https://github.com/ai/size-limit)
+# Address Validation
 
-## Optimizations
+You can use the static method isValidAddress to check the validity of a TON address:
 
-Please see the main `tsdx` [optimizations docs](https://github.com/palmerhq/tsdx#optimizations). In particular, know that you can take advantage of development-only optimizations:
-
-```js
-// ./types/index.d.ts
-declare var __DEV__: boolean;
-
-// inside your code...
-if (__DEV__) {
-  console.log('foo');
+```typescript
+try {
+  const validAddress = EmbeddedWallet.isValidAddress(address);
+  console.log('Is valid address:', validAddress);
+} catch (error) {
+  console.error(error);
 }
 ```
 
-You can also choose to install and use [invariant](https://github.com/palmerhq/tsdx#invariant) and [warning](https://github.com/palmerhq/tsdx#warning) functions.
+# Important Notes
+## Using with Vite
+When developing with Vite, you need to include a polyfill for Buffer, as it may not be available in the browser environment by default. This is necessary because the library uses the Node.js Buffer API, which Vite does not automatically polyfill.
 
-## Module Formats
-
-CJS, ESModules, and UMD module formats are supported.
-
-The appropriate paths are configured in `package.json` and `dist/index.js` accordingly. Please report if any issues are found.
-
-## Named Exports
-
-Per Palmer Group guidelines, [always use named exports.](https://github.com/palmerhq/typescript#exports) Code split inside your React app instead of your React library.
-
-## Including Styles
-
-There are many ways to ship styles, including with CSS-in-JS. TSDX has no opinion on this, configure how you like.
-
-For vanilla CSS, you can include it at the root directory and add it to the `files` section in your `package.json`, so that it can be imported separately by your users and run through their bundler's loader.
-
-## Publishing to NPM
-
-We recommend using [np](https://github.com/sindresorhus/np).
+## Local Development with Telegram Mini Apps (TMA)
+When developing locally for Telegram Mini Apps (TMA), it's recommended to use NGROK or a similar tool to expose your local server over HTTPS. This is necessary because the Web Crypto API, which the library uses for secure encryption and decryption, requires a secure context (HTTPS).

@@ -3,7 +3,6 @@ import {
   mnemonicToPrivateKey,
   mnemonicValidate,
 } from 'ton-crypto';
-import WebAppSDK from '@twa-dev/sdk';
 import {
   Address,
   Cell,
@@ -20,7 +19,10 @@ import {
   ISendTonTransaction,
   ITransferTonOptions,
   StorageKeys,
+  TransferOptions,
+  TransToSignJetton,
 } from '../types';
+import { TokenWallet } from '../token-wallet/token-wallet';
 
 const defaultTonClient4Endpoint = 'https://mainnet-v4.tonhubapi.com';
 // const defaultTonClientEndpoint = 'https://toncenter.com/api/v2/jsonRPC';
@@ -33,16 +35,24 @@ interface EmbeddedWalletOptions {
   tonClientApiKey?: string;
 }
 
+declare global {
+  interface Window {
+    Telegram?: any;
+  }
+}
+
 export class EmbeddedWallet {
   private _storage: StorageWallet | TelegramStorage;
   private _tonClient4: TonClient4;
   // private _tonClient: TonClient;
 
   constructor(options?: EmbeddedWalletOptions) {
-    this._storage =
-      (WebAppSDK as any)?.initData?.length !== 0
-        ? new TelegramStorage()
-        : new StorageWallet();
+    const isTelegramEnvironment =
+    typeof window.Telegram !== 'undefined' &&
+    window.Telegram.WebApp &&
+    window.Telegram.WebApp.initData &&
+    window.Telegram.WebApp.initData.length !== 0;
+    this._storage = isTelegramEnvironment ? new TelegramStorage() : new StorageWallet();
 
     const tonClient4Endpoint =
       options?.tonClient4Endpoint || defaultTonClient4Endpoint;
@@ -73,7 +83,7 @@ export class EmbeddedWallet {
   }
 
   public async createNewWallet(password: string): Promise<void> {
-    if (this.isAuth()) {
+    if (await this.isAuth()) {
       throw new Error('Wallet already exists.');
     }
 
@@ -99,7 +109,7 @@ export class EmbeddedWallet {
     password: string,
     mnemonics: string[]
   ): Promise<void> {
-    if (this.isAuth()) {
+    if (await this.isAuth()) {
       throw new Error('Wallet already exists.');
     }
 
@@ -125,6 +135,16 @@ export class EmbeddedWallet {
     );
   }
 
+  public async verifyPassword(password: string): Promise<boolean> {
+    try {
+      const mnemonic = await this.getMnemonic(password);
+      const isValid = await mnemonicValidate(mnemonic.split(' '));
+      return isValid;
+    } catch (error) {
+      return false;
+    }
+  }
+
   private async saveMnemonic(
     mnemonic: string,
     password: string
@@ -144,9 +164,9 @@ export class EmbeddedWallet {
   }
 
   public async getMnemonic(password: string): Promise<string> {
-    const salt = this._storage.get(StorageKeys.SALT);
-    const iv = this._storage.get(StorageKeys.IV);
-    const ciphertext = this._storage.get(StorageKeys.CIPHERTEXT);
+    const salt = await this._storage.get(StorageKeys.SALT);
+    const iv = await this._storage.get(StorageKeys.IV);
+    const ciphertext = await this._storage.get(StorageKeys.CIPHERTEXT);
 
     if (!salt || !iv || !ciphertext) {
       throw new Error('Mnemonic not found in storage.');
@@ -200,22 +220,29 @@ export class EmbeddedWallet {
     }
   }
 
-  public isAuth(): boolean {
-    const hash = this._storage.get(StorageKeys.CIPHERTEXT);
-    const iv = this._storage.get(StorageKeys.IV);
-    const salt = this._storage.get(StorageKeys.SALT);
-    const publicKey = this._storage.get(StorageKeys.PUBLIC);
-    const address = this._storage.get(StorageKeys.ADDRESS);
+  public async isAuth(): Promise<boolean> {
+    try {
+      const [hash, iv, salt, publicKey, address] = await Promise.all([
+        this._storage.get(StorageKeys.CIPHERTEXT),
+        this._storage.get(StorageKeys.IV),
+        this._storage.get(StorageKeys.SALT),
+        this._storage.get(StorageKeys.PUBLIC),
+        this._storage.get(StorageKeys.ADDRESS),
+      ]);
 
-    return Boolean(iv && hash && salt && publicKey && address);
+      return Boolean(iv && hash && salt && publicKey && address);
+    } catch (error) {
+      console.error('Error checking authentication:', error);
+      return false;
+    }
   }
 
-  public getAddress(): string {
-    if (!this.isAuth()) {
+  public async getAddress(): Promise<string> {
+    if (!(await this.isAuth())) {
       throw new Error('Wallet is not authenticated');
     }
 
-    const address = this._storage.get(StorageKeys.ADDRESS);
+    const address = await this._storage.get(StorageKeys.ADDRESS);
     if (!address) {
       throw new Error('Address not found in storage');
     }
@@ -228,7 +255,7 @@ export class EmbeddedWallet {
       throw new Error('Wallet is not authenticated');
     }
 
-    const publicKeyHex = this._storage.get(StorageKeys.PUBLIC);
+    const publicKeyHex = await this._storage.get(StorageKeys.PUBLIC);
     if (!publicKeyHex) {
       throw new Error('Public key not found in storage');
     }
@@ -311,6 +338,36 @@ export class EmbeddedWallet {
     };
 
     await this.sendTonTransaction(txData);
+  }
+
+  //   public async transferJetton (options: ITransferJettonOptions): Promise<void> {
+
+  //     const dataJ = EmbeddedWallet.sendJettonToBoc(trJ, )
+
+  //     const jettonWallet = await this.resolveJettonAddressFor(Address.parse(tokenAddress), Address.parse(loadData.address))
+
+  //     if (!jettonWallet) {
+  //       throw new Error('Resolve JettonWallet error');
+
+  //     }
+  // }
+
+  public static sendJettonToBoc(
+    tr: TransToSignJetton,
+    addressUser: string
+  ): string {
+    const transJetton: TransferOptions = {
+      queryId: 1,
+      tokenAmount: BigInt(tr.amount),
+      to: Address.parse(tr.to.toString()), // to address
+      responseAddress: Address.parse(addressUser.toString()),
+      comment: tr.comment,
+    };
+
+    const boc = TokenWallet.buildTransferMessage(transJetton);
+
+    const base64 = boc.toBoc().toString('base64');
+    return base64;
   }
 
   private formatErrorMessage(error: unknown): string {

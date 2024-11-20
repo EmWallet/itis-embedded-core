@@ -1,11 +1,16 @@
 import { CloudStorage } from "@twa-dev/types";
-import WebAppSDK from '@twa-dev/sdk'
+
+declare global {
+    interface Window {
+      Telegram?: any;
+    }
+  }
 
 export class TelegramStorage {
     private _storage: CloudStorage
 
     constructor () {
-        this._storage = (WebAppSDK as any)?.CloudStorage
+        this._storage = window?.Telegram?.WebApp?.CloudStorage
     }
 
     public save (key: string, data: any | string): boolean {

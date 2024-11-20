@@ -16,14 +16,14 @@ export class StorageWallet {
         return true
     }
 
-    public get(key: string): any | undefined {
+    public async get(key: string): Promise<any | undefined> {
         try {
-            return this._storage.getItem(`embedded-${key}`);
+          return this._storage.getItem(`embedded-${key}`);
         } catch (error) {
-            console.error("Failed to retrieve data from storage:", error);
-            return undefined;
+          console.error("Failed to retrieve data from storage:", error);
+          return undefined;
         }
-    }
+      }
     
 
     public del(key: string): boolean {
