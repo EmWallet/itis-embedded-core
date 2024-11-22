@@ -20,8 +20,8 @@ The library addresses the challenge of securely storing your wallet's private ke
 Install the library via npm:
 
 ```bash
-npm install @toncryptomillionaire/itis-embedded-core
-yarn add @toncryptomillionaire/itis-embedded-core
+npm install @emwallet/itis-embedded-core
+yarn add @emwallet/itis-embedded-core
 ```
 
 ## usage example
@@ -30,7 +30,7 @@ yarn add @toncryptomillionaire/itis-embedded-core
 import {
   EmbeddedWallet,
   TonAPIClient,
-} from '@toncryptomillionaire/itis-embedded-core';
+} from '@emwallet/itis-embedded-core';
 
 // Initialize the wallet and TonAPI client
 const wallet = new EmbeddedWallet();
