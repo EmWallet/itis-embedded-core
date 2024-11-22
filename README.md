@@ -9,7 +9,7 @@ The library addresses the challenge of securely storing your wallet's private ke
 - Create a new TON wallet or import an existing one via mnemonic.
 - Safely store and encrypt wallet data on the client side.
 - Retrieve wallet details such as address and balance.
-- Send TON transactions with support for comments.
+- Send TON and Jettons transactions with support for comments.
 - Fetch transaction history for TON and Jetton transfers.
 - Validate blockchain addresses.
 - Retrieve real-time token rates and balances for Jettons.
