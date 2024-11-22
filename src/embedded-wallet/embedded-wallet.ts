@@ -9,6 +9,7 @@ import {
   comment,
   fromNano,
   internal,
+  JettonMaster,
   TonClient4,
   WalletContractV4,
 } from '@ton/ton';
@@ -17,6 +18,7 @@ import { TelegramStorage } from '../telegram-storage';
 import { CryptoService } from '../crypto-service';
 import {
   ISendTonTransaction,
+  ITransferJettonOptions,
   ITransferTonOptions,
   StorageKeys,
   TransferOptions,
@@ -25,14 +27,12 @@ import {
 import { TokenWallet } from '../token-wallet/token-wallet';
 
 const defaultTonClient4Endpoint = 'https://mainnet-v4.tonhubapi.com';
-// const defaultTonClientEndpoint = 'https://toncenter.com/api/v2/jsonRPC';
 
 const workchain = 0;
+const JETTON_TRANSFER_FEE = '200000000'; // 0.2 TON for jetton transfer
 
 interface EmbeddedWalletOptions {
   tonClient4Endpoint?: string;
-  tonClientEndpoint?: string;
-  tonClientApiKey?: string;
 }
 
 declare global {
@@ -44,27 +44,20 @@ declare global {
 export class EmbeddedWallet {
   private _storage: StorageWallet | TelegramStorage;
   private _tonClient4: TonClient4;
-  // private _tonClient: TonClient;
 
   constructor(options?: EmbeddedWalletOptions) {
     const isTelegramEnvironment =
-    typeof window.Telegram !== 'undefined' &&
-    window.Telegram.WebApp &&
-    window.Telegram.WebApp.initData &&
-    window.Telegram.WebApp.initData.length !== 0;
-    this._storage = isTelegramEnvironment ? new TelegramStorage() : new StorageWallet();
+      typeof window.Telegram !== 'undefined' &&
+      window.Telegram.WebApp &&
+      window.Telegram.WebApp.initData &&
+      window.Telegram.WebApp.initData.length !== 0;
+    this._storage = isTelegramEnvironment
+      ? new TelegramStorage()
+      : new StorageWallet();
 
     const tonClient4Endpoint =
       options?.tonClient4Endpoint || defaultTonClient4Endpoint;
     this._tonClient4 = new TonClient4({ endpoint: tonClient4Endpoint });
-
-    // const tonClientEndpoint =
-    //   options?.tonClientEndpoint || defaultTonClientEndpoint;
-    // const tonClientApiKey = options?.tonClientApiKey;
-    // this._tonClient = new TonClient({
-    //   endpoint: tonClientEndpoint,
-    //   apiKey: tonClientApiKey,
-    // });
   }
 
   private async initializeWalletData(
@@ -340,38 +333,94 @@ export class EmbeddedWallet {
     await this.sendTonTransaction(txData);
   }
 
-  //   public async transferJetton (options: ITransferJettonOptions): Promise<void> {
+  public async transferJetton(options: ITransferJettonOptions): Promise<void> {
+    const userAddress = await this.getAddress();
+    const dataJetton = this.sendJettonToBoc(
+      {
+        to: Address.parse(options.receiver),
+        amount: options.amount,
+        comment: options.comment,
+      },
+      userAddress
+    );
 
-  //     const dataJ = EmbeddedWallet.sendJettonToBoc(trJ, )
+    const jettonWallet = await this.resolveJettonWalletAddress(
+      Address.parse(options.jettonAddress),
+      Address.parse(userAddress)
+    );
 
-  //     const jettonWallet = await this.resolveJettonAddressFor(Address.parse(tokenAddress), Address.parse(loadData.address))
+    if (!jettonWallet) {
+      throw new Error('Resolve JettonWallet error');
+    }
 
-  //     if (!jettonWallet) {
-  //       throw new Error('Resolve JettonWallet error');
+    const mnemonic = await this.getMnemonic(options.password);
+    const keyPair = await mnemonicToPrivateKey(mnemonic.split(' '));
 
-  //     }
-  // }
+    const txData: ISendTonTransaction = {
+      amount: JETTON_TRANSFER_FEE, // 0.2 TON with jetton transfer
+      receiver: jettonWallet.toString({ bounceable: true }), // send message to jetton wallet contract
+      secretKey: keyPair.secretKey,
+      publicKey: keyPair.publicKey,
+      data: dataJetton,
+    };
 
-  public static sendJettonToBoc(
+    await this.sendTonTransaction(txData);
+  }
+
+  private sendJettonToBoc(
     tr: TransToSignJetton,
     addressUser: string
   ): string {
-    const transJetton: TransferOptions = {
-      queryId: 1,
-      tokenAmount: BigInt(tr.amount),
-      to: Address.parse(tr.to.toString()), // to address
-      responseAddress: Address.parse(addressUser.toString()),
-      comment: tr.comment,
-    };
+    try {
+      if (!tr || !tr.amount || !tr.to) {
+        throw new Error('Invalid transaction data provided');
+      }
+      if (!addressUser) {
+        throw new Error('User address is required');
+      }
+      const transJetton: TransferOptions = {
+        queryId: 1,
+        tokenAmount: BigInt(tr.amount),
+        to: Address.parse(tr.to.toString()),
+        responseAddress: Address.parse(addressUser.toString()),
+        comment: tr.comment,
+      };
 
-    const boc = TokenWallet.buildTransferMessage(transJetton);
+      const boc = TokenWallet.buildTransferMessage(transJetton);
 
-    const base64 = boc.toBoc().toString('base64');
-    return base64;
+      const base64 = boc.toBoc().toString('base64');
+      return base64;
+    } catch (error) {
+      console.error('Error in sendJettonToBoc:', error);
+      throw new Error(
+        `Failed to build Jetton transfer message: ${this.formatErrorMessage(
+          error
+        )}`
+      );
+    }
   }
 
   private formatErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : 'Unknown error';
+  }
+
+  private async resolveJettonWalletAddress(
+    jettonMasterAddress: Address,
+    userContractAddress: Address
+  ): Promise<Address> {
+    try {
+      const jettonMaster = this._tonClient4.open(
+        JettonMaster.create(jettonMasterAddress)
+      );
+      const address = await jettonMaster.getWalletAddress(userContractAddress);
+      return address;
+    } catch (error) {
+      throw new Error(
+        `Failed to resolve jetton wallet address: ${this.formatErrorMessage(
+          error
+        )}`
+      );
+    }
   }
 
   public static isValidAddress(address: string): boolean {

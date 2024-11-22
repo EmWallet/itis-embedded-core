@@ -20,8 +20,8 @@ The library addresses the challenge of securely storing your wallet's private ke
 Install the library via npm:
 
 ```bash
-GITHUB_TOKEN=<YOUR_GH_TOKEN> npm install @toncryptomillionaire/itis-embedded-core
-GITHUB_TOKEN=<YOUR GH TOKEN> yarn add @toncryptomillionaire/itis-embedded-core
+npm install @toncryptomillionaire/itis-embedded-core
+yarn add @toncryptomillionaire/itis-embedded-core
 ```
 
 ## usage example
@@ -130,7 +130,22 @@ async function main() {
       receiver: 'EQDc...recipientAddress...', // Replace with a valid recipient address
       comment: 'Payment for services',
     });
-    console.log('Transaction successfully sent.');
+    console.log('TON successfully sent.');
+  } catch (error) {
+    console.error(error);
+  }
+
+  // Send Jettons
+  try {
+    console.log('Sending Jettons...');
+    await wallet.transferJetton({
+      password: 'secure-password',
+      amount: '500000000', // Amount of Jettons in nano tokens
+      receiver: 'EQDc...recipientAddress...', // Replace with a valid recipient address
+      jettonAddress: 'EQDc...jettonMasterAddress...', // Jetton Master contract address
+      comment: 'Jetton payment',
+    });
+    console.log('Jettons successfully sent.');
   } catch (error) {
     console.error(error);
   }
